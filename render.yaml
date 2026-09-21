@@ -3,7 +3,7 @@ services:
     name: toj-backend
     env: node
     plan: free
-    buildCommand: npm install && npx prisma generate && npm run build
+    buildCommand: npm install && npm run build
     startCommand: npm run start
     healthCheckPath: /health
     envVars:
