@@ -1,0 +1,229 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id             String    @id @default(uuid())
+  username       String    @unique
+  displayName    String
+  email          String?   @unique
+  phone          String?   @unique
+  passwordHash   String?
+  bio            String?   @default("")
+  profilePicUrl  String?   @default("")
+  isPrivate      Boolean   @default(false)
+  isVerified     Boolean   @default(false)
+  category       String    @default("personal") // personal, creator, business
+  status         String    @default("active")   // active, suspended, deleted
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  reels          Reel[]
+  likes          Like[]
+  comments       Comment[]
+  savedReels     SavedReel[]
+
+  // Follow relationships
+  followers      Follow[]  @relation("following")
+  following      Follow[]  @relation("follower")
+
+  // Notifications
+  notificationsReceived Notification[] @relation("recipient")
+  notificationsSent     Notification[] @relation("actor")
+
+  // Moderation
+  reportsFiled   Report[]  @relation("reporter")
+  reportsAgainst Report[]  @relation("reportedUser")
+  blockedUsers   Block[]   @relation("blocker")
+  blockedBy      Block[]   @relation("blocked")
+}
+
+model Follow {
+  id          String   @id @default(uuid())
+  followerId  String
+  followingId String
+  status      String   @default("accepted") // accepted, pending
+  createdAt   DateTime @default(now())
+
+  follower    User     @relation("follower", fields: [followerId], references: [id], onDelete: Cascade)
+  following   User     @relation("following", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, followingId])
+  @@index([followerId])
+  @@index([followingId])
+}
+
+model Reel {
+  id              String         @id @default(uuid())
+  userId          String
+  videoUrl        String
+  thumbnailUrl    String
+  caption         String?        @default("")
+  soundId         String?
+  durationMs      Int            @default(15000)
+  privacy         String         @default("public") // public, followers, private
+  commentsEnabled Boolean        @default(true)
+  status          String         @default("live")   // processing, live, flagged, removed
+  viewCount       Int            @default(0)
+  likeCount       Int            @default(0)
+  commentCount    Int            @default(0)
+  shareCount      Int            @default(0)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sound           Sound?         @relation(fields: [soundId], references: [id], onDelete: SetNull)
+  likes           Like[]
+  comments        Comment[]
+  savedBy         SavedReel[]
+  hashtags        ReelHashtag[]
+  views           ReelView[]
+
+  @@index([userId])
+  @@index([createdAt])
+  @@index([status])
+}
+
+model Like {
+  id        String   @id @default(uuid())
+  userId    String
+  reelId    String
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reel      Reel     @relation(fields: [reelId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, reelId])
+  @@index([reelId])
+  @@index([userId])
+}
+
+model Comment {
+  id              String    @id @default(uuid())
+  reelId          String
+  userId          String
+  parentCommentId String?
+  text            String
+  likeCount       Int       @default(0)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reel            Reel      @relation(fields: [reelId], references: [id], onDelete: Cascade)
+  parentComment   Comment?  @relation("CommentReplies", fields: [parentCommentId], references: [id], onDelete: Cascade)
+  replies         Comment[] @relation("CommentReplies")
+
+  @@index([reelId])
+  @@index([parentCommentId])
+}
+
+model SavedReel {
+  id        String   @id @default(uuid())
+  userId    String
+  reelId    String
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reel      Reel     @relation(fields: [reelId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, reelId])
+  @@index([userId])
+}
+
+model Sound {
+  id         String   @id @default(uuid())
+  title      String
+  artist     String
+  audioUrl   String
+  usageCount Int      @default(0)
+  durationMs Int      @default(30000)
+  createdAt  DateTime @default(now())
+
+  reels      Reel[]
+}
+
+model Hashtag {
+  id         String        @id @default(uuid())
+  tag        String        @unique
+  usageCount Int           @default(0)
+  createdAt  DateTime      @default(now())
+
+  reels      ReelHashtag[]
+}
+
+model ReelHashtag {
+  id        String  @id @default(uuid())
+  reelId    String
+  hashtagId String
+
+  reel      Reel    @relation(fields: [reelId], references: [id], onDelete: Cascade)
+  hashtag   Hashtag @relation(fields: [hashtagId], references: [id], onDelete: Cascade)
+
+  @@unique([reelId, hashtagId])
+  @@index([hashtagId])
+}
+
+model Notification {
+  id          String   @id @default(uuid())
+  recipientId String
+  actorId     String
+  type        String   // follow, follow_back_suggestion, like, comment, mention, system
+  reelId      String?
+  commentId   String?
+  isRead      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  recipient   User     @relation("recipient", fields: [recipientId], references: [id], onDelete: Cascade)
+  actor       User     @relation("actor", fields: [actorId], references: [id], onDelete: Cascade)
+
+  @@index([recipientId])
+  @@index([createdAt])
+}
+
+model Report {
+  id             String   @id @default(uuid())
+  reporterId     String
+  reportedUserId String?
+  reelId         String?
+  commentId      String?
+  reason         String
+  details        String?  @default("")
+  status         String   @default("pending") // pending, reviewed, dismissed, resolved
+  createdAt      DateTime @default(now())
+
+  reporter       User     @relation("reporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  reportedUser   User?    @relation("reportedUser", fields: [reportedUserId], references: [id], onDelete: SetNull)
+
+  @@index([reporterId])
+}
+
+model Block {
+  id        String   @id @default(uuid())
+  blockerId String
+  blockedId String
+  createdAt DateTime @default(now())
+
+  blocker   User     @relation("blocker", fields: [blockerId], references: [id], onDelete: Cascade)
+  blocked   User     @relation("blocked", fields: [blockedId], references: [id], onDelete: Cascade)
+
+  @@unique([blockerId, blockedId])
+  @@index([blockerId])
+}
+
+model ReelView {
+  id        String   @id @default(uuid())
+  userId    String?
+  reelId    String
+  ipAddress String?
+  createdAt DateTime @default(now())
+
+  reel      Reel     @relation(fields: [reelId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, reelId])
+  @@index([reelId])
+}
