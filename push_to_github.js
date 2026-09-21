@@ -87,6 +87,10 @@ async function main() {
     });
   } catch (_) {}
 
+  try {
+    await git.branch({ fs, dir, ref: 'main' });
+  } catch (_) {}
+
   const pushResult = await git.push({
     fs,
     http,
