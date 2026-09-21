@@ -91,30 +91,42 @@ export class ReelsController {
         return;
       }
 
-      let videoUrl: string;
-      let thumbnailUrl: string;
+      let videoUrl = '';
+      let thumbnailUrl = '';
       let actualDurationMs = req.body.durationMs ? parseInt(req.body.durationMs) : 15000;
 
-      if (process.env.CLOUDINARY_URL) {
-        console.log('Uploading reel video to Cloudinary CDN...');
-        const cloudVideo = await uploadVideoToCloudinary(videoFile.path);
-        videoUrl = cloudVideo.videoUrl;
-        thumbnailUrl = cloudVideo.thumbnailUrl;
-        if (cloudVideo.durationMs) {
-          actualDurationMs = cloudVideo.durationMs;
-        }
+      const host = req.get('host') || 'localhost:5000';
+      const protocol = req.protocol === 'https' || req.get('x-forwarded-proto') === 'https' ? 'https' : 'http';
+      const baseUrl = process.env.BASE_URL || `${protocol}://${host}`;
 
-        if (thumbnailFile && fs.existsSync(thumbnailFile.path)) {
-          try {
-            const customThumb = await uploadImageToCloudinary(thumbnailFile.path, 'toj_thumbnails');
-            thumbnailUrl = customThumb.imageUrl;
-          } catch (thumbErr) {
-            console.warn('Custom thumbnail upload to Cloudinary failed, using auto-generated:', thumbErr);
+      if (process.env.CLOUDINARY_URL) {
+        try {
+          console.log('Attempting reel video upload to Cloudinary CDN...');
+          const cloudVideo = await uploadVideoToCloudinary(videoFile.path);
+          if (cloudVideo && cloudVideo.videoUrl) {
+            videoUrl = cloudVideo.videoUrl;
+            thumbnailUrl = cloudVideo.thumbnailUrl;
+            if (cloudVideo.durationMs) {
+              actualDurationMs = cloudVideo.durationMs;
+            }
+            console.log('Cloudinary video upload successful:', videoUrl);
           }
+
+          if (thumbnailFile && fs.existsSync(thumbnailFile.path)) {
+            try {
+              const customThumb = await uploadImageToCloudinary(thumbnailFile.path, 'toj_thumbnails');
+              thumbnailUrl = customThumb.imageUrl;
+            } catch (thumbErr) {
+              console.warn('Custom thumbnail upload to Cloudinary failed, using auto-generated:', thumbErr);
+            }
+          }
+        } catch (cloudErr) {
+          console.warn('Cloudinary upload timed out or failed, falling back to direct server storage:', cloudErr);
         }
-        console.log('Cloudinary video upload successful:', videoUrl);
-      } else {
-        const baseUrl = process.env.BASE_URL || 'http://localhost:5000';
+      }
+
+      // Fallback: If Cloudinary was not used or encountered a network timeout
+      if (!videoUrl) {
         videoUrl = `${baseUrl}/uploads/reels/${videoFile.filename}`;
         let thumbnailFilename = thumbnailFile?.filename;
         if (!thumbnailFilename) {
