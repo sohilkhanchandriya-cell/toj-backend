@@ -18,51 +18,33 @@ export interface UploadImageResult {
  * Uploads a video to Cloudinary, extracts poster thumbnail, deletes local temp file,
  * and returns CDN URLs.
  */
-export const uploadVideoToCloudinary = (filePath: string): Promise<UploadVideoResult> => {
-  return new Promise((resolve, reject) => {
-    cloudinary.uploader.upload_large(
-      filePath,
-      {
-        resource_type: 'video',
-        folder: 'toj_reels',
-        chunk_size: 6000000,
-      },
-      (error, result) => {
-        if (error) {
-          try {
-            if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-          } catch (_) {}
-          return reject(error);
-        }
+export const uploadVideoToCloudinary = async (filePath: string): Promise<UploadVideoResult> => {
+  try {
+    const result = await cloudinary.uploader.upload(filePath, {
+      resource_type: 'video',
+      folder: 'toj_reels',
+    });
 
-        const resAny = result as any;
-        if (!resAny || !resAny.secure_url) {
-          try {
-            if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-          } catch (_) {}
-          return reject(new Error('Cloudinary upload did not return secure_url'));
-        }
+    const resAny = result as any;
+    const videoUrl = resAny?.secure_url || resAny?.url || '';
+    const thumbnailUrl = videoUrl ? videoUrl.replace(/\.[^/.]+$/, '.jpg') : '';
+    const durationMs = Math.round((resAny?.duration || 15) * 1000);
 
-        const videoUrl = resAny.secure_url;
-        const thumbnailUrl = resAny.secure_url.replace(/\.[^/.]+$/, '.jpg');
-        const durationMs = Math.round((resAny.duration || 15) * 1000);
+    try {
+      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    } catch (_) {}
 
-        try {
-          if (fs.existsSync(filePath)) {
-            fs.unlinkSync(filePath);
-          }
-        } catch (cleanErr) {
-          console.warn('Failed to delete temp video file:', cleanErr);
-        }
-
-        resolve({
-          videoUrl,
-          thumbnailUrl,
-          durationMs,
-        });
-      }
-    );
-  });
+    return {
+      videoUrl,
+      thumbnailUrl,
+      durationMs,
+    };
+  } catch (err) {
+    try {
+      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    } catch (_) {}
+    throw err;
+  }
 };
 
 /**
