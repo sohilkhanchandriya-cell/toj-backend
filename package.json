@@ -5,8 +5,9 @@
   "main": "dist/index.js",
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
-    "build": "tsc",
-    "start": "node dist/index.js",
+    "prisma:prepare": "node -e \"const fs=require('fs'); let s=fs.readFileSync('prisma/schema.prisma','utf8'); if(process.env.DATABASE_URL && process.env.DATABASE_URL.startsWith('postgres')) { s=s.replace('provider = \\\"sqlite\\\"', 'provider = \\\"postgresql\\\"'); fs.writeFileSync('prisma/schema.prisma', s); console.log('Configured Prisma for PostgreSQL'); }\"",
+    "build": "npm run prisma:prepare && prisma generate && tsc",
+    "start": "npm run prisma:prepare && prisma generate && prisma db push && node dist/index.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma db push",
     "seed": "ts-node-dev src/seeds/seed.ts",
