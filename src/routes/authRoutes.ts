@@ -6,6 +6,7 @@ import { uploadMedia } from '../middleware/upload';
 const router = Router();
 
 router.post('/register', uploadMedia.single('avatar'), AuthController.register);
+router.get('/check-username', AuthController.checkUsername);
 router.post('/login', AuthController.login);
 router.post('/change-password', requireAuth, AuthController.changePassword);
 router.post('/register/mobile', AuthController.requestMobileOtp);
