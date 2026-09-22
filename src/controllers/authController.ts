@@ -471,4 +471,33 @@ export class AuthController {
       res.status(500).json({ success: false, message: error.message });
     }
   }
+
+  /**
+   * Real-time Username availability check
+   */
+  static async checkUsername(req: Request, res: Response): Promise<void> {
+    try {
+      const username = ((req.query.username as string) || '').trim().toLowerCase();
+      if (!username || username.length < 3 || username.length > 20) {
+        res.status(400).json({ success: false, available: false, message: 'Username must be 3-20 characters' });
+        return;
+      }
+
+      const usernameRegex = /^[a-zA-Z0-9_]{3,20}$/;
+      if (!usernameRegex.test(username)) {
+        res.status(400).json({ success: false, available: false, message: 'Only letters, numbers, and _ are allowed' });
+        return;
+      }
+
+      const existing = await prisma.user.findUnique({ where: { username } });
+      res.status(200).json({
+        success: true,
+        available: !existing,
+        username,
+        message: existing ? 'Username is already taken' : 'Username is available'
+      });
+    } catch (error: any) {
+      res.status(500).json({ success: false, message: error.message });
+    }
+  }
 }
