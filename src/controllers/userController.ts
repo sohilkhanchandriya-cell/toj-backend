@@ -31,6 +31,19 @@ export class UserController {
             commentCount: true,
             shareCount: true,
             createdAt: true,
+            sound: {
+              select: {
+                id: true,
+                title: true,
+                artist: true,
+                audioUrl: true,
+              },
+            },
+            hashtags: {
+              include: {
+                hashtag: true,
+              },
+            },
             user: {
               select: {
                 id: true,
@@ -225,6 +238,19 @@ export class UserController {
               commentCount: true,
               shareCount: true,
               createdAt: true,
+              sound: {
+                select: {
+                  id: true,
+                  title: true,
+                  artist: true,
+                  audioUrl: true,
+                },
+              },
+              hashtags: {
+                include: {
+                  hashtag: true,
+                },
+              },
               user: {
                 select: {
                   id: true,
