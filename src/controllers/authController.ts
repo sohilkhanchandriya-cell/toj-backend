@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 import prisma from '../prisma';
 import { generateTokens } from '../middleware/auth';
 import { AuthenticatedRequest } from '../types';
@@ -497,6 +498,126 @@ export class AuthController {
         message: existing ? 'Username is already taken' : 'Username is available'
       });
     } catch (error: any) {
+      res.status(500).json({ success: false, message: error.message });
+    }
+  }
+
+  /**
+   * Bulk Seed Motivational Creator Accounts & Auto-follow Target
+   */
+  static async seedBulkCreators(req: Request, res: Response): Promise<void> {
+    try {
+      const targetUsername = ((req.body.targetUsername as string) || 'sohilkhanchandriya').trim().toLowerCase();
+      const count = parseInt(req.body.count as string) || 1000;
+
+      const targetUser = await prisma.user.findUnique({
+        where: { username: targetUsername },
+      });
+
+      if (!targetUser) {
+        res.status(404).json({ success: false, message: `Target user @${targetUsername} not found` });
+        return;
+      }
+
+      // Pre-compute bcrypt password hash for '123456' once for instant insertion
+      const passwordHash = await bcrypt.hash('123456', 10);
+
+      const firstNames = ['Aarav', 'Vikram', 'Kabir', 'Rohit', 'Dev', 'Aryan', 'Sameer', 'Aditya', 'Varun', 'Alok', 'Priya', 'Ananya', 'Neha', 'Tanvi', 'Kavya', 'Meera', 'Rohan', 'Kunal', 'Siddharth', 'Yash', 'Rishi', 'Mayank', 'Dhruv', 'Ayush', 'Harsh'];
+      const lastNames = ['Sharma', 'Verma', 'Mehta', 'Roy', 'Khan', 'Patel', 'Joshi', 'Desai', 'Rao', 'Gupta', 'Singh', 'Malik', 'Nair', 'Chopra', 'Kapoor', 'Bhatia', 'Saxena', 'Bansal', 'Reddy', 'Mishra'];
+      const motivationalThemes = [
+        'mindset', 'inspire', 'discipline', 'grit', 'unstoppable', 'hustle', 'focus', 'ambition',
+        'growth', 'champion', 'vision', 'rise', 'warrior', 'grind', 'success', 'alpha', 'lead',
+        'courage', 'legacy', 'motivate'
+      ];
+      const motivationalBios = [
+        'Daily discipline & unstoppable mindset 🔥 #NeverGiveUp',
+        'Dream big. Work hard. Stay focused. 🚀 #Motivation',
+        'Pain is temporary, pride is forever 💪 #Grind',
+        'Building an empire one day at a time ✨ #SuccessMindset',
+        'Discipline will take you places motivation cannot 🎯',
+        'Turn your wounds into wisdom 🦁 #Warrior',
+        'Wake up with determination, go to bed with satisfaction 🌅',
+        'Your only limit is you. Break all boundaries ⚡',
+        'Consistency creates champions 🏆 #DailyInspiration',
+        'Silence the doubt with massive action 💥 #Hustle',
+      ];
+
+      const usersToInsert: any[] = [];
+      const followsToInsert: any[] = [];
+
+      for (let i = 1; i <= count; i++) {
+        const id = crypto.randomUUID();
+        const fName = firstNames[(i - 1) % firstNames.length];
+        const lName = lastNames[Math.floor((i - 1) / firstNames.length) % lastNames.length];
+        const theme = motivationalThemes[(i - 1) % motivationalThemes.length];
+        const bio = motivationalBios[(i - 1) % motivationalBios.length];
+        const paddedNum = i.toString().padStart(4, '0');
+        const username = `${theme}_${fName.toLowerCase()}_${paddedNum}`;
+
+        usersToInsert.push({
+          id,
+          username,
+          displayName: `${fName} ${lName}`,
+          bio,
+          passwordHash,
+          category: 'motivation',
+          profilePicUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=${username}`,
+          status: 'active',
+          isVerified: false,
+          isPrivate: false,
+        });
+
+        followsToInsert.push({
+          id: crypto.randomUUID(),
+          followerId: id,
+          followingId: targetUser.id,
+          status: 'accepted',
+        });
+      }
+
+      // Bulk insert in chunks of 500
+      const chunkSize = 500;
+      let insertedUsers = 0;
+      let insertedFollows = 0;
+
+      for (let i = 0; i < usersToInsert.length; i += chunkSize) {
+        const chunk = usersToInsert.slice(i, i + chunkSize);
+        const resUsers = await prisma.user.createMany({
+          data: chunk,
+          skipDuplicates: true,
+        });
+        insertedUsers += resUsers.count;
+      }
+
+      for (let i = 0; i < followsToInsert.length; i += chunkSize) {
+        const chunk = followsToInsert.slice(i, i + chunkSize);
+        const resFollows = await prisma.follow.createMany({
+          data: chunk,
+          skipDuplicates: true,
+        });
+        insertedFollows += resFollows.count;
+      }
+
+      // Query current total follower count for target
+      const totalFollowers = await prisma.follow.count({
+        where: { followingId: targetUser.id, status: 'accepted' },
+      });
+
+      res.status(200).json({
+        success: true,
+        message: `Successfully created ${insertedUsers} motivational creator accounts and followed @${targetUsername}!`,
+        insertedUsers,
+        insertedFollows,
+        targetUsername,
+        targetFollowers: totalFollowers,
+        sampleAccounts: usersToInsert.slice(0, 5).map((u) => ({
+          username: u.username,
+          displayName: u.displayName,
+          password: '123456',
+        })),
+      });
+    } catch (error: any) {
+      console.error('Bulk seeding error:', error);
       res.status(500).json({ success: false, message: error.message });
     }
   }
