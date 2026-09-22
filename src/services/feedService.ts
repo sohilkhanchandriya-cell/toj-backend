@@ -120,7 +120,33 @@ export class FeedService {
     }
 
     // 2. Fetch candidates from DB (take broader pool to rank accurately)
-    const reels = await prisma.reel.findMany({
+    const candidateInclude = {
+      user: {
+        select: {
+          id: true,
+          username: true,
+          displayName: true,
+          profilePicUrl: true,
+          isVerified: true,
+          category: true,
+        },
+      },
+      sound: {
+        select: {
+          id: true,
+          title: true,
+          artist: true,
+          audioUrl: true,
+        },
+      },
+      hashtags: {
+        include: {
+          hashtag: true,
+        },
+      },
+    };
+
+    let reels = await prisma.reel.findMany({
       where: {
         status: 'live',
         privacy: 'public',
@@ -129,32 +155,23 @@ export class FeedService {
       },
       take: Math.max(50, limit * 4),
       orderBy: { createdAt: 'desc' },
-      include: {
-        user: {
-          select: {
-            id: true,
-            username: true,
-            displayName: true,
-            profilePicUrl: true,
-            isVerified: true,
-            category: true,
-          },
-        },
-        sound: {
-          select: {
-            id: true,
-            title: true,
-            artist: true,
-            audioUrl: true,
-          },
-        },
-        hashtags: {
-          include: {
-            hashtag: true,
-          },
-        },
-      },
+      include: candidateInclude,
     });
+
+    // Endless Feed Loop: If cursor reached the end of older reels, loop back to the latest pool
+    // so the user can scroll indefinitely without ever hitting a dead end!
+    if (reels.length === 0) {
+      reels = await prisma.reel.findMany({
+        where: {
+          status: 'live',
+          privacy: 'public',
+          userId: { notIn: blockedUserIds },
+        },
+        take: Math.max(50, limit * 4),
+        orderBy: { createdAt: 'desc' },
+        include: candidateInclude,
+      });
+    }
 
     // 3. Algorithmic Scoring & Ranking
     const scoredReels = reels.map((reel) => {
@@ -234,10 +251,11 @@ export class FeedService {
     // 5. Hydrate viewer-specific interaction flags
     const hydratedReels = await this.hydrateReelsWithViewerState(selected, viewerId);
 
+    // Always provide a valid continuous nextCursor for endless scrolling
     const nextCursor =
-      reels.length >= limit && selected.length > 0
+      selected.length > 0
         ? selected[selected.length - 1].createdAt.toISOString()
-        : null;
+        : new Date().toISOString();
 
     return { reels: hydratedReels, nextCursor };
   }
