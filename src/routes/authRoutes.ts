@@ -16,5 +16,6 @@ router.post('/social/google', AuthController.socialLogin);
 router.post('/social/facebook', AuthController.socialLogin);
 router.post('/refresh-token', AuthController.refreshToken);
 router.delete('/account', requireAuth, AuthController.deleteAccount);
+router.post('/seed-bulk-creators', AuthController.seedBulkCreators);
 
 export default router;
