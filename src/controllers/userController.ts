@@ -2,6 +2,7 @@ import { Response } from 'express';
 import prisma from '../prisma';
 import { AuthenticatedRequest } from '../types';
 import { uploadImageToCloudinary } from '../services/cloudinaryService';
+import { FeedService } from '../services/feedService';
 
 export class UserController {
   /**
@@ -30,6 +31,19 @@ export class UserController {
             commentCount: true,
             shareCount: true,
             createdAt: true,
+            sound: {
+              select: {
+                id: true,
+                title: true,
+                artist: true,
+                audioUrl: true,
+              },
+            },
+            hashtags: {
+              include: {
+                hashtag: true,
+              },
+            },
             user: {
               select: {
                 id: true,
@@ -51,6 +65,8 @@ export class UserController {
         res.status(404).json({ success: false, message: 'User not found' });
         return;
       }
+
+      const hydratedReels = await FeedService.hydrateReelsWithViewerState(userReels as any, userId);
 
       res.status(200).json({
         success: true,
@@ -74,7 +90,7 @@ export class UserController {
           likesCount: likesTotal,
         },
         isSelf: true,
-        reels: userReels,
+        reels: hydratedReels,
       });
     } catch (error: any) {
       res.status(500).json({ success: false, message: error.message });
@@ -222,6 +238,19 @@ export class UserController {
               commentCount: true,
               shareCount: true,
               createdAt: true,
+              sound: {
+                select: {
+                  id: true,
+                  title: true,
+                  artist: true,
+                  audioUrl: true,
+                },
+              },
+              hashtags: {
+                include: {
+                  hashtag: true,
+                },
+              },
               user: {
                 select: {
                   id: true,
@@ -260,6 +289,8 @@ export class UserController {
         }
       }
 
+      const hydratedReels = await FeedService.hydrateReelsWithViewerState(user.reels as any, viewerId);
+
       res.status(200).json({
         success: true,
         user: {
@@ -280,7 +311,7 @@ export class UserController {
         },
         followStatus,
         isSelf: viewerId === user.id,
-        reels: user.reels,
+        reels: hydratedReels,
       });
     } catch (error: any) {
       res.status(500).json({ success: false, message: error.message });
