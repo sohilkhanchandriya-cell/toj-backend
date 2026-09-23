@@ -21,6 +21,50 @@ import fs from 'fs';
 
 // Static media uploads serving
 const uploadsDir = path.join(__dirname, '../uploads');
+
+// Fallback for thumbnails so default_thumb.jpg and missing thumbnails never 404
+app.get('/uploads/thumbnails/:file', (req: Request, res: Response, next: NextFunction) => {
+  const filePath = path.join(uploadsDir, 'thumbnails', req.params.file);
+  if (fs.existsSync(filePath)) {
+    return res.sendFile(filePath);
+  }
+  return res.redirect(302, 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?w=720&q=80');
+});
+
+// Fallback for avatars so missing avatars never 404
+app.get('/uploads/avatars/:file', (req: Request, res: Response, next: NextFunction) => {
+  const filePath = path.join(uploadsDir, 'avatars', req.params.file);
+  if (fs.existsSync(filePath)) {
+    return res.sendFile(filePath);
+  }
+  const name = path.parse(req.params.file).name;
+  return res.redirect(302, `https://api.dicebear.com/7.x/avataaars/png?seed=${encodeURIComponent(name)}`);
+});
+
+// Fallback for reels so wiped ephemeral files seamlessly redirect to streaming CDN
+app.get('/uploads/reels/:file', (req: Request, res: Response, next: NextFunction) => {
+  const filePath = path.join(uploadsDir, 'reels', req.params.file);
+  if (fs.existsSync(filePath)) {
+    return res.sendFile(filePath);
+  }
+  const cdnVideos = [
+    'https://github.com/sohilkhanchandriya-cell/toj-backend/releases/download/v1.0-reels/movie_reel_001.mp4',
+    'https://github.com/sohilkhanchandriya-cell/toj-backend/releases/download/v1.0-reels/movie_reel_002.mp4',
+    'https://github.com/sohilkhanchandriya-cell/toj-backend/releases/download/v1.0-reels/movie_reel_003.mp4',
+    'https://github.com/sohilkhanchandriya-cell/toj-backend/releases/download/v1.0-reels/movie_reel_004.mp4',
+    'https://github.com/sohilkhanchandriya-cell/toj-backend/releases/download/v1.0-reels/movie_reel_005.mp4',
+    'https://github.com/sohilkhanchandriya-cell/toj-backend/releases/download/v1.0-reels/movie_reel_006.mp4',
+    'https://github.com/sohilkhanchandriya-cell/toj-backend/releases/download/v1.0-reels/movie_reel_007.mp4',
+    'https://github.com/sohilkhanchandriya-cell/toj-backend/releases/download/v1.0-reels/movie_reel_008.mp4',
+    'https://github.com/sohilkhanchandriya-cell/toj-backend/releases/download/v1.0-reels/movie_reel_009.mp4',
+    'https://github.com/sohilkhanchandriya-cell/toj-backend/releases/download/v1.0-reels/movie_reel_010.mp4',
+  ];
+  let hash = 0;
+  for (let i = 0; i < req.params.file.length; i++) hash += req.params.file.charCodeAt(i);
+  const cdnUrl = cdnVideos[Math.abs(hash) % cdnVideos.length];
+  return res.redirect(302, cdnUrl);
+});
+
 app.use('/uploads', express.static(uploadsDir));
 
 // Media uploads directory explorer
