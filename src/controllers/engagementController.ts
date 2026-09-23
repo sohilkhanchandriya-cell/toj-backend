@@ -144,7 +144,21 @@ export class EngagementController {
    */
   static async addComment(req: AuthenticatedRequest, res: Response): Promise<void> {
     try {
-      const userId = req.user!.id;
+      let userId = req.user?.id;
+      if (!userId) {
+        let guestUser = await prisma.user.findFirst({ where: { username: 'toj_fan' } });
+        if (!guestUser) {
+          guestUser = await prisma.user.create({
+            data: {
+              username: 'toj_fan',
+              displayName: 'TOJ Community Member',
+              profilePicUrl: 'https://api.dicebear.com/7.x/avataaars/png?seed=toj_fan',
+            }
+          });
+        }
+        userId = guestUser.id;
+      }
+
       const { id: reelId } = req.params;
       const { text, parentCommentId } = req.body;
 
