@@ -10,7 +10,7 @@ router.delete('/reels/:id/like', requireAuth, EngagementController.unlikeReel);
 
 // Comments
 router.get('/reels/:id/comments', optionalAuth, EngagementController.getComments);
-router.post('/reels/:id/comments', requireAuth, EngagementController.addComment);
+router.post('/reels/:id/comments', optionalAuth, EngagementController.addComment);
 router.delete('/comments/:id', requireAuth, EngagementController.deleteComment);
 
 // Bookmarks / Saved
